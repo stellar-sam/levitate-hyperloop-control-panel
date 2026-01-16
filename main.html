@@ -1,0 +1,1487 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Hyperloop Pod Dashboard</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+        <!-- UI/CSS -->
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                background: #fff;
+                color: #333;
+                overflow-x: hidden;
+                min-height: 100vh;
+            }
+
+            .header {
+                background: rgba(255, 255, 255, 0.95);
+                border-bottom: 1px solid #333;
+                padding: 12px 15px;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+            }
+
+            .header-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+
+            
+
+            .logo {
+                width: 30px;
+                height: 30px;
+            }
+
+            .logo img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            }
+
+            .title {
+                font-size: 12px;
+                letter-spacing: 2px;
+                font-weight: 600;
+            }
+
+            .status {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 9px;
+                letter-spacing: 1px;
+            }
+
+            .dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #333;
+            }
+
+            .dot.off {
+                background: #ccc;
+            }
+
+            .header-controls {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            input {
+                padding: 6px 10px;
+                background: #fff;
+                border: 1px solid #333;
+                color: #333;
+                font-size: 9px;
+                flex: 1;
+                min-width: 80px;
+            }
+
+            input:focus {
+                outline: none;
+                background: #f5f5f5;
+            }
+
+            button {
+                padding: 6px 12px;
+                background: #fff;
+                border: 1px solid #333;
+                color: #333;
+                cursor: pointer;
+                font-size: 9px;
+                transition: all 0.2s;
+                white-space: nowrap;
+            }
+
+            button:hover:not(:disabled) {
+                background: #333;
+                color: #fff;
+            }
+
+            button:disabled {
+                opacity: 0.3;
+                cursor: not-allowed;
+            }
+
+            .file-input {
+                display: none;
+            }
+
+            .tabs {
+                display: flex;
+                background: #fff;
+                border-bottom: 1px solid #333;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .tabs::-webkit-scrollbar {
+                display: none;
+            }
+
+            .tab {
+                padding: 12px 20px;
+                border-right: 1px solid #ddd;
+                cursor: pointer;
+                font-size: 10px;
+                letter-spacing: 1px;
+                white-space: nowrap;
+                transition: all 0.2s;
+            }
+
+            .tab:hover {
+                background: #f5f5f5;
+            }
+
+            .tab.active {
+                background: #333;
+                color: #fff;
+            }
+
+            .tab-content {
+                display: none;
+                padding: 15px;
+            }
+
+            .tab-content.active {
+                display: block;
+            }
+
+            .panel {
+                background: rgba(255, 255, 255, 0.95);
+                border: 1px solid #333;
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .panel-title {
+                font-size: 9px;
+                letter-spacing: 2px;
+                margin-bottom: 10px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #333;
+                font-weight: 600;
+                text-transform: uppercase;
+            }
+
+            .data-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #ddd;
+                font-size: 11px;
+            }
+
+            .data-row:last-child {
+                border-bottom: none;
+            }
+
+            .data-label {
+                opacity: 0.6;
+                font-size: 9px;
+            }
+
+            .data-value {
+                font-weight: 500;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .status-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+
+            .status-item {
+                padding: 10px;
+                border: 1px solid #ddd;
+                background: #fafafa;
+                text-align: center;
+            }
+
+            .status-item.active {
+                border-color: #333;
+                background: #f0f0f0;
+            }
+
+            .status-item.warning {
+                border-color: #ff6b00;
+                background: #fff5f0;
+                color: #ff6b00;
+            }
+
+            .status-item-label {
+                font-size: 7px;
+                letter-spacing: 1px;
+                opacity: 0.6;
+                margin-bottom: 4px;
+            }
+
+            .status-item-value {
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            .fault-item {
+                padding: 10px;
+                margin-bottom: 8px;
+                border-left: 3px solid #333;
+                background: #fafafa;
+                font-size: 9px;
+                line-height: 1.5;
+            }
+
+            .fault-item.warning {
+                border-color: #ff6b00;
+            }
+
+            .fault-header {
+                font-weight: 600;
+                margin-bottom: 4px;
+            }
+
+            .fault-subsystem {
+                opacity: 0.6;
+                font-size: 8px;
+            }
+
+            .gauge-mini {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 5px 0;
+                font-size: 10px;
+            }
+
+            .gauge-bar {
+                width: 100%;
+                height: 6px;
+                background: #e0e0e0;
+                position: relative;
+                margin: 4px 0 10px 0;
+            }
+
+            .gauge-fill {
+                height: 100%;
+                background: #333;
+                transition: width 0.3s;
+            }
+
+            .gauge-fill.warning {
+                background: #ff6b00;
+            }
+
+            .mini-chart {
+                width: 100%;
+                height: 100px;
+                margin-top: 10px;
+                border: 1px solid #ddd;
+                background: #fff;
+            }
+
+            .chart-container {
+                width: 100%;
+                height: 120px;
+                margin-top: 10px;
+                border: 1px solid #ddd;
+                background: #fff;
+                position: relative;
+            }
+
+            .distance-display {
+                text-align: center;
+                padding: 20px 0;
+            }
+
+            .distance-big {
+                font-size: 48px;
+                font-weight: 300;
+                letter-spacing: -2px;
+            }
+
+            .distance-label {
+                font-size: 10px;
+                opacity: 0.5;
+                margin-top: 5px;
+            }
+
+            .bar-container {
+                width: 100%;
+                height: 8px;
+                background: #e0e0e0;
+                margin: 15px 0 8px 0;
+            }
+
+            .bar {
+                height: 100%;
+                background: #333;
+                transition: width 0.1s;
+            }
+
+            .bar-label {
+                font-size: 8px;
+                opacity: 0.4;
+                text-align: center;
+            }
+
+            .control-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .btn-danger {
+                border-color: #ff0000;
+                color: #ff0000;
+            }
+
+            .btn-danger:hover:not(:disabled) {
+                background: #ff0000;
+                color: #fff;
+            }
+
+            .residual-display {
+                text-align: center;
+                padding: 15px;
+                background: #fafafa;
+                border: 1px solid #ddd;
+                margin-bottom: 10px;
+            }
+
+            .residual-value {
+                font-size: 32px;
+                font-weight: 300;
+                margin: 8px 0;
+            }
+
+            .residual-trend {
+                font-size: 9px;
+                opacity: 0.6;
+            }
+
+            .explanation {
+                font-size: 9px;
+                line-height: 1.6;
+                padding: 12px;
+                background: #f0f8ff;
+                border: 1px solid #ccc;
+            }
+
+            .viewer3d {
+                height: 300px;
+                position: relative;
+                border: 1px solid #333;
+                margin-bottom: 15px;
+            }
+
+            #canvas-container {
+                width: 100%;
+                height: 100%;
+            }
+
+            .model-info {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                background: rgba(0, 0, 0, 0.8);
+                color: #fff;
+                padding: 8px 15px;
+                font-size: 10px;
+                z-index: 10;
+                display: none;
+            }
+
+            .model-info.show {
+                display: block;
+            }
+
+            .message {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(255, 255, 255, 0.98);
+                border: 2px solid #333;
+                padding: 30px 50px;
+                font-size: 14px;
+                display: none;
+                z-index: 10000;
+            }
+
+            .message.show {
+                display: block;
+            }
+
+            .value {
+                font-variant-numeric: tabular-nums;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <div class="logo">
+                    <img src="kalej-grp.jpg" alt="Logo" />
+                </div>
+                <div class="title">LEVITATE HYPERLOOP</div>
+                <div class="status">
+                    <div class="dot off" id="dot"></div>
+                    <span id="status">OFFLINE</span>
+                </div>
+            </div>
+            <div class="header-controls">
+                <input
+                    type="file"
+                    id="objFile"
+                    class="file-input"
+                    accept=".obj"
+                />
+                <button id="loadModel">LOAD MODEL</button>
+                <input
+                    type="text"
+                    id="ip"
+                    placeholder="Pi IP"
+                    value="192.168.1.100"
+                />
+                <button id="connect">CONNECT</button>
+                <button id="disconnect" disabled>DISCONNECT</button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="home">HOME</div>
+            <div class="tab" data-tab="sensors">SENSORS</div>
+            <div class="tab" data-tab="viewer">3D VIEWER</div>
+            <div class="tab" data-tab="systems">SYSTEMS</div>
+            <div class="tab" data-tab="diagnostics">DIAGNOSTICS</div>
+            <div class="tab" data-tab="control">CONTROL</div>
+        </div>
+        
+        <!-- HOME Tab -->
+        <div class="tab-content active" id="home">
+            <div class="panel-title">ORIENTATION</div>
+                <div class="status-grid">
+                    <div class="status-item active">
+                        <div class="status-item-label">STATE</div>
+                        <div class="status-item-value">RUNNING</div>
+                    </div>
+                    <div class="status-item active">
+                        <div class="status-item-label">CAN BUS</div>
+                        <div class="status-item-value">ONLINE</div>
+                    </div>
+                    <div class="status-item active">
+                        <div class="status-item-label">Wi-Fi</div>
+                        <div class="status-item-value">LINKED</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-item-label">UPTIME</div>
+                        <div class="status-item-value" id="uptime">
+                            00:12:34
+                        </div>
+                    </div>
+                </div>
+            <!-- Orientation -->
+            <div class="panel orientation">
+                <div class="data-row">
+                    <span class="data-label">PITCH</span>
+                    <span class="data-value"><span id="pitch">0.8</span>°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ROLL</span>
+                    <span class="data-value"><span id="roll">-1.2</span>°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">YAW</span>
+                    <span class="data-value"><span id="yaw">45.3</span>°</span>
+                </div>
+            </div>
+
+            <!-- Acceleration -->
+            <div class="panel acceleration">
+                <div class="panel-title">ACCELERATION</div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL X</span>
+                    <span class="data-value"><span id="ax">0.023</span> g</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL Y</span>
+                    <span class="data-value"
+                        ><span id="ay">-0.012</span> g</span
+                    >
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL Z</span>
+                    <span class="data-value"><span id="az">1.003</span> g</span>
+                </div>
+            </div>
+
+            <!-- Gyroscope -->
+            <div class="panel gyroscope">
+                <div class="panel-title">GYROSCOPE</div>
+                <div class="data-row">
+                    <span class="data-label">GYRO X</span>
+                    <span class="data-value"
+                        ><span id="gx">-2.1</span> °/s</span
+                    >
+                </div>
+                <div class="data-row">
+                    <span class="data-label">GYRO Y</span>
+                    <span class="data-value"><span id="gy">0.5</span> °/s</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">GYRO Z</span>
+                    <span class="data-value"><span id="gz">1.3</span> °/s</span>
+                </div>
+            </div>
+
+            <!-- Power -->
+            <div class="panel power">
+                <div class="panel-title">POWER SYSTEMS</div>
+                <div class="gauge-mini">
+                    <span>BATTERY</span>
+                    <span class="value">11.8V</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 78%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>CURRENT</span>
+                    <span class="value">3.2A</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 45%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>TEMP (ELEC)</span>
+                    <span class="value" id="tempElec">62°C</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill warning" style="width: 88%"></div>
+                </div>
+            </div>
+
+            <!-- 3D Viewer -->
+            <div class="viewer3d">
+                <div class="model-info" id="modelInfo">
+                    Default model loaded
+                </div>
+                <div id="canvas-container"></div>
+            </div>
+
+            <!-- Faults -->
+            <div class="panel faults">
+                <div class="panel-title">SAFETY & FAULTS</div>
+                <div class="fault-item warning">
+                    <div class="fault-header">
+                        [WARNING] Temperature Threshold
+                    </div>
+                    <div class="fault-subsystem">
+                        POWER • Electronics: 62°C / 70°C
+                    </div>
+                </div>
+                <div class="fault-item warning">
+                    <div class="fault-header">[WARNING] Magnetic Asymmetry</div>
+                    <div class="fault-subsystem">
+                        LEVITATION • L/R diff: 8.3%
+                    </div>
+                </div>
+                <div class="fault-item">
+                    <div class="fault-header">[INFO] Calibration Complete</div>
+                    <div class="fault-subsystem">
+                        IMU • Bias compensation active
+                    </div>
+                </div>
+            </div>
+
+            <!-- Levitation -->
+            <div class="panel levitation">
+                <div class="panel-title">LEVITATION</div>
+                <div class="data-row">
+                    <span class="data-label">MAG FIELD</span>
+                    <span class="data-value" id="magField">342.5 mT</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">AIR GAP</span>
+                    <span class="data-value" id="airGap">8.2 mm</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">STABILITY</span>
+                    <span class="data-value">STEADY</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">SYMMETRY</span>
+                    <span class="data-value" id="symmetry">91.7%</span>
+                </div>
+                <canvas class="mini-chart" id="levChart"></canvas>
+            </div>
+
+            <!-- PINN Diagnostics -->
+            <div class="panel pinn-diag">
+                <div class="panel-title">PINN DIAGNOSTICS</div>
+                <div class="residual-display">
+                    <div style="font-size: 8px; opacity: 0.6">RESIDUAL</div>
+                    <div class="residual-value" id="residual">0.0342</div>
+                    <div class="residual-trend">↑ +12% / 30s</div>
+                </div>
+                <canvas class="mini-chart" id="residualChart"></canvas>
+                <div class="data-row">
+                    <span class="data-label">CONFIDENCE</span>
+                    <span class="data-value">94.2%</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">MISMATCH</span>
+                    <span class="data-value" style="color: #ff6b00"
+                        >MODERATE</span
+                    >
+                </div>
+            </div>
+
+            <!-- Environment -->
+            <div class="panel env">
+                <div class="panel-title">ENVIRONMENT</div>
+                <div class="gauge-mini">
+                    <span>TEMP (AMB)</span>
+                    <span class="value">23°C</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 35%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>PRESSURE</span>
+                    <span class="value">101.3 kPa</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 50%"></div>
+                </div>
+                <div class="explanation">
+                    <strong>ANALYSIS:</strong><br />
+                    • Sensor drift detected<br />
+                    • Magnetic imbalance<br />
+                    • Vibration: 12-15 Hz<br /><br />
+                    <strong>ACTION:</strong><br />
+                    Monitor levitation stability
+                </div>
+            </div>
+
+            <!-- Distance -->
+            <div class="panel">
+                <div class="panel-title">DISTANCE SENSORS</div>
+
+                <div class="data-row">
+                    <span class="data-label">FRONT</span>
+                    <span class="data-value">
+                        <span id="distFront" class="value">156.3</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">BACK</span>
+                    <span class="data-value">
+                        <span id="distBack" class="value">142.7</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">LEFT</span>
+                    <span class="data-value">
+                        <span id="distLeft" class="value">98.4</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">RIGHT</span>
+                    <span class="data-value">
+                        <span id="distRight" class="value">101.2</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">BOTTOM</span>
+                    <span class="data-value">
+                        <span id="distBottom" class="value">8.6</span> cm
+                    </span>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="panel controls">
+                <div class="panel-title">SYSTEM CONTROL</div>
+                <div class="control-grid">
+                    <button id="btnStart">▶ START</button>
+                    <button id="btnStop" class="btn-danger">■ STOP</button>
+                    <button id="btnReset">↻ RESET</button>
+                    <button id="btnLog">● LOG</button>
+                    <button id="btnDownload">⬇ DOWNLOAD</button>
+                    <button id="btnEmergency" class="btn-danger">
+                        ⚠ E-STOP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Sensors Tab -->
+        <div class="tab-content" id="sensors">
+            <!-- Status -->
+            <div class="status-grid">
+                    <div class="status-item active">
+                        <div class="status-item-label">STATE</div>
+                        <div class="status-item-value">RUNNING</div>
+                    </div>
+                    <div class="status-item active">
+                        <div class="status-item-label">CAN BUS</div>
+                        <div class="status-item-value">ONLINE</div>
+                    </div>
+                    <div class="status-item active">
+                        <div class="status-item-label">Wi-Fi</div>
+                        <div class="status-item-value">LINKED</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-item-label">UPTIME</div>
+                        <div class="status-item-value" id="uptime">
+                            00:12:34
+                        </div>
+                    </div>
+                </div>
+            <!-- Orientation -->
+            <div class="panel">
+                <div class="panel-title">ORIENTATION</div>
+                <div class="data-row">
+                    <span class="data-label">PITCH</span>
+                    <span class="data-value"><span id="pitch">0.8</span>°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ROLL</span>
+                    <span class="data-value"><span id="roll">-1.2</span>°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">YAW</span>
+                    <span class="data-value"><span id="yaw">45.3</span>°</span>
+                </div>
+            </div>
+            <!-- Acceleration -->
+            <div class="panel">
+                <div class="panel-title">ACCELERATION</div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL X</span>
+                    <span class="data-value"><span id="ax">0.023</span> g</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL Y</span>
+                    <span class="data-value"
+                        ><span id="ay">-0.012</span> g</span
+                    >
+                </div>
+                <div class="data-row">
+                    <span class="data-label">ACCEL Z</span>
+                    <span class="data-value"><span id="az">1.003</span> g</span>
+                </div>
+                <canvas class="mini-chart" id="accelChart"></canvas>
+            </div>
+            <!-- Gyroscope -->
+            <div class="panel">
+                <div class="panel-title">GYROSCOPE</div>
+                <div class="data-row">
+                    <span class="data-label">GYRO X</span>
+                    <span class="data-value"
+                        ><span id="gx">-2.1</span> °/s</span
+                    >
+                </div>
+                <div class="data-row">
+                    <span class="data-label">GYRO Y</span>
+                    <span class="data-value"><span id="gy">0.5</span> °/s</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">GYRO Z</span>
+                    <span class="data-value"><span id="gz">1.3</span> °/s</span>
+                </div>
+                <canvas class="mini-chart" id="gyroChart"></canvas>
+            </div>
+            <!-- Distance Sensors -->
+            <div class="panel">
+                <div class="panel-title">DISTANCE SENSORS</div>
+
+                <div class="data-row">
+                    <span class="data-label">FRONT</span>
+                    <span class="data-value">
+                        <span id="distFront" class="value">156.3</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">BACK</span>
+                    <span class="data-value">
+                        <span id="distBack" class="value">142.7</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">LEFT</span>
+                    <span class="data-value">
+                        <span id="distLeft" class="value">98.4</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">RIGHT</span>
+                    <span class="data-value">
+                        <span id="distRight" class="value">101.2</span> cm
+                    </span>
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">BOTTOM</span>
+                    <span class="data-value">
+                        <span id="distBottom" class="value">8.6</span> cm
+                    </span>
+                </div>
+            </div>
+
+        </div>
+
+        
+
+        <!-- 3D Viewer Tab -->
+        <div class="tab-content" id="viewer">
+            <div class="viewer3d">
+                <div class="model-info" id="modelInfo">
+                    Default model loaded
+                </div>
+                <div id="canvas-container"></div>
+            </div>
+        </div>
+
+        <!-- Systems Tab -->
+        <div class="tab-content" id="systems">
+            <div class="panel">
+                <div class="panel-title">POWER SYSTEMS</div>
+                <div class="gauge-mini">
+                    <span>BATTERY</span>
+                    <span class="value">11.8V</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 78%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>CURRENT</span>
+                    <span class="value">3.2A</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 45%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>TEMP (ELEC)</span>
+                    <span class="value" id="tempElec">62°C</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill warning" style="width: 88%"></div>
+                </div>
+                <canvas class="mini-chart" id="powerChart"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">LEVITATION</div>
+                <div class="data-row">
+                    <span class="data-label">MAG FIELD</span>
+                    <span class="data-value" id="magField">342.5 mT</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">AIR GAP</span>
+                    <span class="data-value" id="airGap">8.2 mm</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">STABILITY</span>
+                    <span class="data-value">STEADY</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">SYMMETRY</span>
+                    <span class="data-value" id="symmetry">91.7%</span>
+                </div>
+                <canvas class="mini-chart" id="levChart"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">ENVIRONMENT</div>
+                <div class="gauge-mini">
+                    <span>TEMP (AMB)</span>
+                    <span class="value">23°C</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 35%"></div>
+                </div>
+                <div class="gauge-mini">
+                    <span>PRESSURE</span>
+                    <span class="value">101.3 kPa</span>
+                </div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" style="width: 50%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagnostics Tab -->
+        <div class="tab-content" id="diagnostics">
+            <div class="panel">
+                <div class="panel-title">SAFETY & FAULTS</div>
+                <div class="fault-item warning">
+                    <div class="fault-header">
+                        [WARNING] Temperature Threshold
+                    </div>
+                    <div class="fault-subsystem">
+                        POWER • Electronics: 62°C / 70°C
+                    </div>
+                </div>
+                <div class="fault-item warning">
+                    <div class="fault-header">[WARNING] Magnetic Asymmetry</div>
+                    <div class="fault-subsystem">
+                        LEVITATION • L/R diff: 8.3%
+                    </div>
+                </div>
+                <div class="fault-item">
+                    <div class="fault-header">[INFO] Calibration Complete</div>
+                    <div class="fault-subsystem">
+                        IMU • Bias compensation active
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">PINN DIAGNOSTICS</div>
+                <div class="residual-display">
+                    <div style="font-size: 8px; opacity: 0.6">RESIDUAL</div>
+                    <div class="residual-value" id="residual">0.0342</div>
+                    <div class="residual-trend">↗ +12% / 30s</div>
+                </div>
+                <canvas class="mini-chart" id="residualChart"></canvas>
+                <div class="data-row">
+                    <span class="data-label">CONFIDENCE</span>
+                    <span class="data-value">94.2%</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">MISMATCH</span>
+                    <span class="data-value" style="color: #ff6b00"
+                        >MODERATE</span
+                    >
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">SYSTEM ANALYSIS</div>
+                <div class="explanation">
+                    <strong>ANALYSIS:</strong><br />
+                    • Sensor drift detected<br />
+                    • Magnetic imbalance<br />
+                    • Vibration: 12-15 Hz<br /><br />
+                    <strong>ACTION:</strong><br />
+                    Monitor levitation stability
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Tab -->
+        <div class="tab-content" id="control">
+            <div class="panel">
+                <div class="panel-title">SYSTEM CONTROL</div>
+                <div class="control-grid">
+                    <button id="btnStart">▶ START</button>
+                    <button id="btnStop" class="btn-danger">■ STOP</button>
+                    <button id="btnReset">↻ RESET</button>
+                    <button id="btnLog">● LOG</button>
+                    <button id="btnDownload">⬇ DOWNLOAD</button>
+                    <button id="btnEmergency" class="btn-danger">
+                        ⚠ E-STOP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="message" id="message">Connecting...</div>
+
+        <script>
+            /* ================= IMU STATE ================= */
+            let ws;
+            let lastIMUTime = performance.now();
+
+            // orientation state (radians)
+            let pitch = 0;
+            let roll  = 0;
+            let yaw   = 0;
+
+            // filter params
+            const ALPHA = 0.98;   // gyro trust
+            const GAIN  = 30.0;    // gyro scale
+        </script>
+
+        <script>
+            /* ================= MPU WEBSOCKET ================= */
+            ws = new WebSocket("ws://10.151.92.8:8765");
+
+            ws.onopen = () => {
+                document.getElementById("status").textContent = "ONLINE";
+                document.getElementById("dot").classList.remove("off");
+            };
+
+            ws.onclose = () => {
+                document.getElementById("status").textContent = "OFFLINE";
+                document.getElementById("dot").classList.add("off");
+            };
+
+            ws.onmessage = (event) => {
+                const d = JSON.parse(event.data);
+
+                /* ---- UI UPDATE ---- */
+                document.getElementById("ax").textContent = d.mpu_accel.x.toFixed(3);
+                document.getElementById("ay").textContent = d.mpu_accel.y.toFixed(3);
+                document.getElementById("az").textContent = d.mpu_accel.z.toFixed(3);
+
+                document.getElementById("gx").textContent = d.mpu_gyro.x.toFixed(2);
+                document.getElementById("gy").textContent = d.mpu_gyro.y.toFixed(2);
+                document.getElementById("gz").textContent = d.mpu_gyro.z.toFixed(2);
+
+                /* ---- TIME ---- */
+                const now = performance.now();
+                const dt = (now - lastIMUTime) / 1000;
+                lastIMUTime = now;
+                if (dt <= 0 || dt > 0.1) return;
+
+                /* ---- GYRO (deg/s → rad/s) ---- */
+                const gx = THREE.MathUtils.degToRad(d.mpu_gyro.x);
+                const gy = THREE.MathUtils.degToRad(d.mpu_gyro.y);
+                const gz = THREE.MathUtils.degToRad(d.mpu_gyro.z);
+
+                pitch += gx * dt * GAIN;
+                roll  += gy * dt * GAIN;
+                yaw   += gz * dt * GAIN;
+
+                /* ---- ACCEL TILT (normalize) ---- */
+                let ax = d.mpu_accel.x;
+                let ay = d.mpu_accel.y;
+                let az = d.mpu_accel.z;
+
+                const norm = Math.sqrt(ax*ax + ay*ay + az*az);
+                ax /= norm; ay /= norm; az /= norm;
+
+                const accelPitch = Math.atan2(ay, Math.sqrt(ax*ax + az*az));
+                const accelRoll  = Math.atan2(-ax, az);
+
+                /* ---- COMPLEMENTARY FILTER ---- */
+                pitch = ALPHA * pitch + (1 - ALPHA) * accelPitch;
+                roll  = ALPHA * roll  + (1 - ALPHA) * accelRoll;
+
+                /* ---- APPLY TO 3D MODEL ---- */
+                if (model) {
+                    model.rotation.x = pitch;
+                    model.rotation.z = roll;
+                    model.rotation.y = yaw; // yaw will drift (no magnetometer)
+                }
+
+                /* ---- UI ORIENTATION ---- */
+                document.getElementById("pitch").textContent =
+                    THREE.MathUtils.radToDeg(pitch).toFixed(1);
+                document.getElementById("roll").textContent =
+                    THREE.MathUtils.radToDeg(roll).toFixed(1);
+                document.getElementById("yaw").textContent =
+                    THREE.MathUtils.radToDeg(yaw).toFixed(1);
+            };
+        </script>
+
+
+
+        <script>
+            // ================= TAB SWITCHING =================
+            const tabs = document.querySelectorAll(".tab");
+            const tabContents = document.querySelectorAll(".tab-content");
+
+            tabs.forEach((tab) => {
+                tab.addEventListener("click", () => {
+                    const targetTab = tab.dataset.tab;
+
+                    tabs.forEach((t) => t.classList.remove("active"));
+                    tabContents.forEach((tc) => tc.classList.remove("active"));
+
+                    tab.classList.add("active");
+                    document.getElementById(targetTab).classList.add("active");
+                });
+            });
+
+            // ================= THREE.JS SETUP =================
+            const canvasContainer = document.getElementById("canvas-container");
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            const camera = new THREE.PerspectiveCamera(
+                60,
+                canvasContainer.clientWidth / canvasContainer.clientHeight,
+                0.1,
+                1000,
+            );
+            camera.position.set(0, 3, 6);
+            camera.lookAt(0, 0, 0);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(
+                canvasContainer.clientWidth,
+                canvasContainer.clientHeight,
+            );
+            canvasContainer.appendChild(renderer.domElement);
+
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+            const light = new THREE.DirectionalLight(0xffffff, 0.6);
+            light.position.set(5, 10, 7);
+            scene.add(light);
+
+            // Grid
+            const grid = new THREE.GridHelper(20, 20, 0x333333, 0xdddddd);
+            scene.add(grid);
+
+            // ================= MODEL =================
+            let model;
+
+            function createDefaultModel() {
+                const geometry = new THREE.BoxGeometry(3, 0.3, 2);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x333333,
+                    shininess: 80,
+                });
+
+                const box = new THREE.Mesh(geometry, material);
+                box.position.y = 1.2;
+
+                const arrowGeo = new THREE.ConeGeometry(0.25, 0.5, 8);
+                const arrowMat = new THREE.MeshPhongMaterial({
+                    color: 0x666666,
+                });
+                const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+                arrow.position.set(0, 0.25, -0.9);
+                arrow.rotation.x = Math.PI / 2;
+
+                box.add(arrow);
+                return box;
+            }
+
+            model = createDefaultModel();
+            scene.add(model);
+
+            // OBJ Loader
+            const loader = new THREE.OBJLoader();
+            const loadModelBtn = document.getElementById("loadModel");
+            const objFileInput = document.getElementById("objFile");
+            const modelInfo = document.getElementById("modelInfo");
+
+            loadModelBtn.addEventListener("click", () => {
+                objFileInput.click();
+            });
+
+            objFileInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    modelInfo.textContent = "Loading...";
+                    modelInfo.classList.add("show");
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            if (model) {
+                                scene.remove(model);
+                            }
+
+                            const objData = event.target.result;
+                            const loadedModel = loader.parse(objData);
+
+                            loadedModel.traverse((child) => {
+                                if (child instanceof THREE.Mesh) {
+                                    child.material =
+                                        new THREE.MeshPhongMaterial({
+                                            color: 0x333333,
+                                            shininess: 100,
+                                            specular: 0x666666,
+                                        });
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+                                }
+                            });
+
+                            const box = new THREE.Box3().setFromObject(
+                                loadedModel,
+                            );
+                            const center = box.getCenter(new THREE.Vector3());
+                            const size = box.getSize(new THREE.Vector3());
+                            const maxDim = Math.max(size.x, size.y, size.z);
+                            const scale = 4 / maxDim;
+
+                            loadedModel.position.set(
+                                -center.x,
+                                -center.y,
+                                -center.z,
+                            );
+
+                            model = new THREE.Group();
+                            model.add(loadedModel);
+                            model.scale.set(scale, scale, scale);
+                            model.position.y = 2;
+
+                            scene.add(model);
+
+                            modelInfo.textContent = `Loaded: ${file.name}`;
+                            setTimeout(
+                                () => modelInfo.classList.remove("show"),
+                                3000,
+                            );
+
+                            console.log("Model loaded successfully");
+                        } catch (error) {
+                            console.error("Error loading model:", error);
+                            modelInfo.textContent = "Error loading model";
+                            setTimeout(
+                                () => modelInfo.classList.remove("show"),
+                                3000,
+                            );
+
+                            if (model) {
+                                scene.remove(model);
+                            }
+                            model = createDefaultModel();
+                            scene.add(model);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+            // ================= ANIMATION =================
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // ================= RESIZE =================
+            window.addEventListener("resize", () => {
+                const w = canvasContainer.clientWidth;
+                const h = canvasContainer.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+
+            // Update distance bar
+            const distanceValue = parseFloat(
+                document.getElementById("distance").textContent,
+            );
+            const barWidth = (distanceValue / 400) * 100;
+            document.getElementById("bar").style.width = barWidth + "%";
+
+            // ================= CHART DRAWING =================
+            function drawLineChart(
+                canvasId,
+                data,
+                color = "#333",
+                fillColor = "rgba(51, 51, 51, 0.1)",
+            ) {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext("2d");
+                const width = (canvas.width = canvas.offsetWidth);
+                const height = (canvas.height = canvas.offsetHeight);
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Find min/max for scaling
+                const min = Math.min(...data);
+                const max = Math.max(...data);
+                const range = max - min || 1;
+
+                // Draw grid
+                ctx.strokeStyle = "#e0e0e0";
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = (height / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                    ctx.stroke();
+                }
+
+                // Draw fill
+                ctx.fillStyle = fillColor;
+                ctx.beginPath();
+                ctx.moveTo(0, height);
+                data.forEach((value, i) => {
+                    const x = (width / (data.length - 1)) * i;
+                    const y = height - ((value - min) / range) * height;
+                    ctx.lineTo(x, y);
+                });
+                ctx.lineTo(width, height);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw line
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                data.forEach((value, i) => {
+                    const x = (width / (data.length - 1)) * i;
+                    const y = height - ((value - min) / range) * height;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                // Draw points
+                ctx.fillStyle = color;
+                data.forEach((value, i) => {
+                    const x = (width / (data.length - 1)) * i;
+                    const y = height - ((value - min) / range) * height;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            function drawBarChart(canvasId, data, color = "#333") {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext("2d");
+                const width = (canvas.width = canvas.offsetWidth);
+                const height = (canvas.height = canvas.offsetHeight);
+
+                ctx.clearRect(0, 0, width, height);
+
+                const max = Math.max(...data);
+                const barWidth = width / data.length;
+                const padding = 2;
+
+                ctx.fillStyle = color;
+                data.forEach((value, i) => {
+                    const barHeight = (value / max) * height;
+                    const x = i * barWidth + padding;
+                    const y = height - barHeight;
+                    ctx.fillRect(x, y, barWidth - padding * 2, barHeight);
+                });
+            }
+
+            // Generate random data
+            function generateRandomData(length, min, max) {
+                const data = [];
+                let value = (min + max) / 2;
+                for (let i = 0; i < length; i++) {
+                    value += (Math.random() - 0.5) * (max - min) * 0.1;
+                    value = Math.max(min, Math.min(max, value));
+                    data.push(value);
+                }
+                return data;
+            }
+
+            // Initialize charts
+            const accelData = generateRandomData(30, 0.9, 1.1);
+            const gyroData = generateRandomData(30, -3, 3);
+            const powerData = generateRandomData(20, 10, 13);
+            const levData = generateRandomData(30, 330, 355);
+            const residualData = generateRandomData(30, 0.02, 0.05);
+
+            drawLineChart(
+                "accelChart",
+                accelData,
+                "#333",
+                "rgba(51, 51, 51, 0.1)",
+            );
+            drawLineChart(
+                "gyroChart",
+                gyroData,
+                "#333",
+                "rgba(51, 51, 51, 0.1)",
+            );
+            drawLineChart(
+                "powerChart",
+                powerData,
+                "#ff6b00",
+                "rgba(255, 107, 0, 0.1)",
+            );
+            drawLineChart("levChart", levData, "#333", "rgba(51, 51, 51, 0.1)");
+            drawLineChart(
+                "residualChart",
+                residualData,
+                "#ff6b00",
+                "rgba(255, 107, 0, 0.1)",
+            );
+
+            // Animate charts
+            setInterval(() => {
+                // Update acceleration chart
+                accelData.shift();
+                accelData.push(0.95 + Math.random() * 0.1);
+                drawLineChart(
+                    "accelChart",
+                    accelData,
+                    "#333",
+                    "rgba(51, 51, 51, 0.1)",
+                );
+
+                // Update gyro chart
+                gyroData.shift();
+                gyroData.push(-2 + Math.random() * 4);
+                drawLineChart(
+                    "gyroChart",
+                    gyroData,
+                    "#333",
+                    "rgba(51, 51, 51, 0.1)",
+                );
+
+                // Update power chart
+                powerData.shift();
+                powerData.push(11 + Math.random() * 2);
+                drawLineChart(
+                    "powerChart",
+                    powerData,
+                    "#ff6b00",
+                    "rgba(255, 107, 0, 0.1)",
+                );
+
+                // Update levitation chart
+                levData.shift();
+                levData.push(340 + Math.random() * 10);
+                drawLineChart(
+                    "levChart",
+                    levData,
+                    "#333",
+                    "rgba(51, 51, 51, 0.1)",
+                );
+
+                // Update residual chart
+                residualData.shift();
+                residualData.push(0.03 + Math.random() * 0.02);
+                drawLineChart(
+                    "residualChart",
+                    residualData,
+                    "#ff6b00",
+                    "rgba(255, 107, 0, 0.1)",
+                );
+            }, 1000);
+        </script>
+    </body>
+</html>
