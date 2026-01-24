@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Levitate Hyperloop</title>
+    <style>
+        /* [STYLES REMAIN UNCHANGED - COMPACTED FOR BREVITY] */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f5f5f5; color: #333; }
+        .header { background: white; border-bottom: 1px solid #e0e0e0; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+        .title { font-size: 14px; font-weight: 600; letter-spacing: 2px; }
+        .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #999; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #999; }
+        .status-dot.online { background: #4caf50; }
+        .status-dot.offline { background: #f44336; }
+        .connection { display: flex; gap: 8px; padding: 12px 20px; background: white; border-bottom: 1px solid #e0e0e0; }
+        .connection input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; }
+        .connection button { padding: 8px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .connection button:hover { background: #2d2d2d; color: white; }
+        .connection button.disconnect { background: #f44336; color: white; border-color: #f44336; }
+        .connection button.disconnect:hover { background: #d32f2f; }
+        nav { display: flex; background: white; border-bottom: 1px solid #e0e0e0; }
+        .tab { padding: 14px 24px; background: none; border: none; cursor: pointer; text-transform: uppercase; font-size: 11px; transition: all 0.2s; }
+        .tab.active { background: #2d2d2d; color: white; }
+        .content { padding: 20px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .card { background: white; border: 1px solid #e0e0e0; margin-bottom: 16px; border-radius: 4px; }
+        .card-header { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; font-size: 11px; text-transform: uppercase; font-weight: 600; }
+        .card-body { padding: 16px; }
+        .sensor-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+        .sensor-row:last-child { border-bottom: none; }
+        .sensor-label { color: #666; }
+        .sensor-value { font-weight: 600; }
+        #logViewer { font-family: 'Courier New', monospace; font-size: 11px; max-height: 400px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 4px; }
+        #viewer-canvas { width: 100%; height: calc(100vh - 200px); background: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; }
+        .viewer-overlay { position: absolute; top: 30px; left: 30px; background: white; padding: 20px; border: 1px solid #e0e0e0; max-width: 300px; z-index: 10; border-radius: 4px; }
+        .viewer-overlay:nth-of-type(2) { left: auto; right: 30px; } /* Move Orientation panel to right side */
+        .viewer-overlay h3 { font-size: 11px; text-transform: uppercase; margin-bottom: 15px; color: #2d2d2d; letter-spacing: 1px; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }
+        .sensor-info { margin-bottom: 12px; padding: 10px; background: #fafafa; border-left: 3px solid #4caf50; transition: all 0.3s; border-radius: 2px; }
+        .sensor-info.warning { border-left-color: #ff9800; background: #fff8f0; }
+        .sensor-info.error { border-left-color: #f44336; background: #fff0f0; }
+        .sensor-name { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+        .sensor-distance { font-size: 18px; font-weight: 600; color: #2d2d2d; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">LEVITATE HYPERLOOP</div>
+        <div class="status">
+            <span class="status-dot offline" id="wsStatus"></span>
+            <span id="statusText">OFFLINE</span>
+        </div>
+    </div>
+
+    <div class="connection">
+        <input type="text" id="wsUrl" value="ws://10.152.121.77:8765" placeholder="WebSocket URL" />
+        <button onclick="connect()">CONNECT</button>
+        <button class="disconnect" onclick="disconnect()">DISCONNECT</button>
+    </div>
+
+    <nav>
+        <button class="tab active" onclick="switchTab('home')">HOME</button>
+        <button class="tab" onclick="switchTab('sensors')">SENSORS</button>
+        <button class="tab" onclick="switchTab('viewer')">3D VIEWER</button>
+        <button class="tab" onclick="switchTab('diagnostics')">DIAGNOSTICS</button>
+    </nav>
+
+    <div class="content">
+        <div id="home" class="tab-content active">
+            <div class="card">
+                <div class="card-header">Node Health</div>
+                <div class="card-body">
+                    <div class="sensor-row">
+                        <span class="sensor-label">Node 1 - Orientation</span>
+                        <span class="sensor-value" id="node1">OFFLINE</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Node 2 - Distance</span>
+                        <span class="sensor-value" id="node2">OFFLINE</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Node 3 - Temperature</span>
+                        <span class="sensor-value" id="node3">OFFLINE</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Node 4 - GPS</span>
+                        <span class="sensor-value" id="node4">OFFLINE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sensors" class="tab-content">
+            <div class="card">
+                <div class="card-header">MPU6050 - Accelerometer & Gyroscope</div>
+                <div class="card-body">
+                    <div class="sensor-row">
+                        <span class="sensor-label">Accel X</span>
+                        <span class="sensor-value" id="s_mpuAccelX">--</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Accel Y</span>
+                        <span class="sensor-value" id="s_mpuAccelY">--</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Accel Z</span>
+                        <span class="sensor-value" id="s_mpuAccelZ">--</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Roll</span>
+                        <span class="sensor-value" id="s_roll">-- °</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Pitch</span>
+                        <span class="sensor-value" id="s_pitch">-- °</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Yaw</span>
+                        <span class="sensor-value" id="s_yaw">-- °</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Time of Flight Sensors</div>
+                <div class="card-body">
+                    <div class="sensor-row">
+                        <span class="sensor-label">TOF 1</span>
+                        <span class="sensor-value" id="tof1">-- mm</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">TOF 2</span>
+                        <span class="sensor-value" id="tof2">-- mm</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">TOF 3</span>
+                        <span class="sensor-value" id="tof3">-- mm</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">TOF 4</span>
+                        <span class="sensor-value" id="tof4">-- mm</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">TOF 5</span>
+                        <span class="sensor-value" id="tof5">-- mm</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">BMP280 - Environment</div>
+                <div class="card-body">
+                    <div class="sensor-row">
+                        <span class="sensor-label">Temperature</span>
+                        <span class="sensor-value" id="temp">-- °C</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Pressure</span>
+                        <span class="sensor-value" id="pressure">-- hPa</span>
+                    </div>
+                    <div class="sensor-row">
+                        <span class="sensor-label">Pod Temperature</span>
+                        <span class="sensor-value" id="podTemp">-- °C</span>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div id="viewer" class="tab-content">
+            <div style="position: relative;">
+                <canvas id="viewer-canvas"></canvas>
+                
+                <div class="viewer-overlay">
+                    <h3>ToF Sensors</h3>
+                    <div class="sensor-info" id="tof1-info">
+                        <div class="sensor-name">TOF 1 - Front</div>
+                        <div class="sensor-distance">-- mm</div>
+                    </div>
+                    <div class="sensor-info" id="tof2-info">
+                        <div class="sensor-name">TOF 2 - Right</div>
+                        <div class="sensor-distance">-- mm</div>
+                    </div>
+                    <div class="sensor-info" id="tof3-info">
+                        <div class="sensor-name">TOF 3 - Left</div>
+                        <div class="sensor-distance">-- mm</div>
+                    </div>
+                    <div class="sensor-info" id="tof4-info">
+                        <div class="sensor-name">TOF 4 - Up</div>
+                        <div class="sensor-distance">-- mm</div>
+                    </div>
+                    <div class="sensor-info" id="tof5-info">
+                        <div class="sensor-name">TOF 5 - Back</div>
+                        <div class="sensor-distance">-- mm</div>
+                    </div>
+                </div>
+
+                <div class="viewer-overlay">
+                    <h3>Orientation</h3>
+                    <div class="sensor-info" id="v_accel_x">
+                        <div class="sensor-name">Acceleration X</div>
+                        <div class="sensor-distance">-- g</div>
+                    </div>
+                    <div class="sensor-info" id="v_accel_y">
+                        <div class="sensor-name">Acceleration Y</div>
+                        <div class="sensor-distance">-- g</div>
+                    </div>
+                    <div class="sensor-info" id="v_accel_z">
+                        <div class="sensor-name">Acceleration Z</div>
+                        <div class="sensor-distance">-- g</div>
+                    </div>
+                    <div class="sensor-info" id="v_roll">
+                        <div class="sensor-name">Roll</div>
+                        <div class="sensor-distance">-- °</div>
+                    </div>
+                    <div class="sensor-info" id="v_pitch">
+                        <div class="sensor-name">Pitch</div>
+                        <div class="sensor-distance">-- °</div>
+                    </div>
+                    <div class="sensor-info" id="v_yaw">
+                        <div class="sensor-name">Yaw</div>
+                        <div class="sensor-distance">-- °</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="diagnostics" class="tab-content">
+            <div class="card">
+                <div class="card-header">System Log</div>
+                <div class="card-body">
+                    <div id="logViewer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+/* ================= WEBSOCKET ================= */
+let ws = null;
+let tofData = {};
+let nodeTimestamps = {
+    node1: 0, // MPU
+    node2: 0, // TOF
+    node3: 0, // BMP
+    node4: 0  // GPS
+};
+
+/* ================= 3D ================= */
+let scene, camera, renderer, pod, sensors = [];
+let viewer3DInitialized = false;
+
+/* ================= MPU SMOOTHING ================= */
+let smoothedMPU = { ax:0, ay:0, az:0, roll:0, pitch:0, yaw:0 };
+const SMOOTHING = 0.1;
+const lp = (c,t)=>c+(t-c)*SMOOTHING;
+
+/* ================= TABS ================= */
+function switchTab(tabId){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+
+    if(tabId==='viewer' && !viewer3DInitialized){
+        init3DViewer();
+        viewer3DInitialized=true;
+    }
+}
+
+/* ================= NODE HEALTH ================= */
+function updateNodeHealth(id){
+    nodeTimestamps[id]=Date.now();
+    const el=document.getElementById(id);
+    if(el){
+        el.textContent='ONLINE';
+        el.style.color='#4caf50';
+    }
+}
+
+setInterval(()=>{
+    const now=Date.now();
+    for(const id in nodeTimestamps){
+        const el=document.getElementById(id);
+        if(!el) continue;
+        if(!nodeTimestamps[id]){
+            el.textContent='OFFLINE';
+            el.style.color='#999';
+        }else if(now-nodeTimestamps[id]>3000){
+            el.textContent='STALE';
+            el.style.color='#ff9800';
+        }
+    }
+},1000);
+
+/* ================= CONNECT ================= */
+function connect(){
+    const url=document.getElementById('wsUrl').value;
+    ws=new WebSocket(url);
+
+    ws.onopen=()=>{
+        wsStatus.className='status-dot online';
+        statusText.textContent='ONLINE';
+        addLog('Connected '+url);
+    };
+
+    ws.onclose=()=>{
+        wsStatus.className='status-dot offline';
+        statusText.textContent='OFFLINE';
+        addLog('Disconnected');
+    };
+
+    ws.onmessage=e=>{
+        try{ handleMessage(JSON.parse(e.data)); }
+        catch{}
+    };
+}
+
+function disconnect(){ if(ws) ws.close(); }
+
+/* ================= MESSAGE HANDLER ================= */
+function handleMessage(data){
+
+    /* ---------- TOF ---------- */
+    if(data.type==='tof'){
+        updateNodeHealth('node2');
+        tofData[data.id]=data.distance_mm;
+        document.getElementById(data.id).textContent=data.distance_mm+' mm';
+        update3DToF(data);
+    }
+
+    /* ---------- MPU ---------- */
+    else if(data.type==='mpu'){
+        updateNodeHealth('node1');
+
+        smoothedMPU.ax=lp(smoothedMPU.ax,data.accel_x);
+        smoothedMPU.ay=lp(smoothedMPU.ay,data.accel_y);
+        smoothedMPU.az=lp(smoothedMPU.az,data.accel_z);
+        smoothedMPU.roll=lp(smoothedMPU.roll,data.roll);
+        smoothedMPU.pitch=lp(smoothedMPU.pitch,data.pitch);
+        smoothedMPU.yaw=lp(smoothedMPU.yaw,data.yaw);
+
+        const g=16384.0;
+        s_mpuAccelX.textContent=(smoothedMPU.ax/g).toFixed(2)+' g';
+        s_mpuAccelY.textContent=(smoothedMPU.ay/g).toFixed(2)+' g';
+        s_mpuAccelZ.textContent=(smoothedMPU.az/g).toFixed(2)+' g';
+        s_roll.textContent=smoothedMPU.roll.toFixed(1)+' °';
+        s_pitch.textContent=smoothedMPU.pitch.toFixed(1)+' °';
+        s_yaw.textContent=smoothedMPU.yaw.toFixed(1)+' °';
+
+        v_accel_x.querySelector('.sensor-distance').textContent=(smoothedMPU.ax/g).toFixed(2)+' g';
+        v_accel_y.querySelector('.sensor-distance').textContent=(smoothedMPU.ay/g).toFixed(2)+' g';
+        v_accel_z.querySelector('.sensor-distance').textContent=(smoothedMPU.az/g).toFixed(2)+' g';
+        v_roll.querySelector('.sensor-distance').textContent=smoothedMPU.roll.toFixed(1)+' °';
+        v_pitch.querySelector('.sensor-distance').textContent=smoothedMPU.pitch.toFixed(1)+' °';
+        v_yaw.querySelector('.sensor-distance').textContent=smoothedMPU.yaw.toFixed(1)+' °';
+
+        update3DMPU(smoothedMPU);
+    }
+
+    /* ---------- BMP280 ---------- */
+    else if(data.type==='bmp'){
+        updateNodeHealth('node3');
+        temp.textContent=data.temperature+' °C';
+        pressure.textContent=data.pressure+' hPa';
+    }
+
+    /* ---------- POD TEMPERATURE (DS18B20) ---------- */
+    else if (data.type === 'ds18b20') {
+        updateNodeHealth('node3'); // still environmental health
+        document.getElementById('podTemp').textContent =
+            data.temperature.toFixed(2) + ' °C';
+    }
+
+
+    /* ---------- GPS ---------- */
+    else if(data.type==='gps'){
+        updateNodeHealth('node4');
+    }
+
+    addLog('RX '+data.type);
+
+}
+
+/* ================= LOG ================= */
+function addLog(msg){
+    logViewer.innerHTML+=`[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+    logViewer.scrollTop=logViewer.scrollHeight;
+}
+
+/* ================= 3D ================= */
+function init3DViewer() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            const canvas = document.getElementById('viewer-canvas');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            camera.position.set(5, 3, 5);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(width, height);
+            renderer.shadowMap.enabled = true;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 5);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            createPod();
+            createRails();
+
+            const gridHelper = new THREE.GridHelper(20, 20, 0xcccccc, 0xe0e0e0);
+            gridHelper.position.y = -1;
+            scene.add(gridHelper);
+
+            animate3D();
+            setupMouseControls();
+            addLog('3D Viewer initialized');
+        }
+
+        function createPod() {
+            const group = new THREE.Group();
+
+            const bodyGeom = new THREE.CylinderGeometry(0.5, 0.5, 3, 32);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, metalness: 0.3, roughness: 0.7 });
+            const body = new THREE.Mesh(bodyGeom, bodyMat);
+            body.rotation.z = Math.PI / 2;
+            group.add(body);
+
+            const noseGeom = new THREE.ConeGeometry(0.5, 0.8, 32);
+            const noseMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.4, roughness: 0.6 });
+            const nose = new THREE.Mesh(noseGeom, noseMat);
+            nose.rotation.z = -Math.PI / 2;
+            nose.position.x = 1.9;
+            group.add(nose);
+
+            pod = group;
+            scene.add(pod);
+        }
+
+        function createRails() {
+            const railGroup = new THREE.Group();
+            const railGeom = new THREE.CylinderGeometry(0.05, 0.05, 30, 16);
+            const railMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+            const rail1 = new THREE.Mesh(railGeom, railMat);
+            rail1.rotation.z = Math.PI / 2;
+            rail1.position.set(0, -0.8, 0.4);
+            railGroup.add(rail1);
+            const rail2 = new THREE.Mesh(railGeom, railMat);
+            rail2.rotation.z = Math.PI / 2;
+            rail2.position.set(0, -0.8, -0.4);
+            railGroup.add(rail2);
+            scene.add(railGroup);
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        function update3DToF(d){
+            const el=document.getElementById(d.id+'-info');
+            if(!el) return;
+            el.querySelector('.sensor-distance').textContent=d.distance_mm+' mm';
+        }
+        function update3DMPU(data) {
+            if (!viewer3DInitialized || !pod) return;
+            const roll  = data.roll  * Math.PI / 180;
+            const pitch = data.pitch * Math.PI / 180;
+            const yaw   = data.yaw   * Math.PI / 180;
+            pod.rotation.x = pitch; 
+            pod.rotation.z = roll;  
+            pod.rotation.y = yaw;   
+        }
+
+        function setupMouseControls() {
+            const canvas = document.getElementById('viewer-canvas');
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            canvas.addEventListener('mousedown', () => isDragging = true);
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDragging && pod) {
+                    const deltaX = e.clientX - previousMousePosition.x;
+                    const deltaY = e.clientY - previousMousePosition.y;
+                    pod.rotation.y += deltaX * 0.01;
+                    pod.rotation.x += deltaY * 0.01;
+                }
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            canvas.addEventListener('mouseup', () => isDragging = false);
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camera.position.z += e.deltaY * 0.01;
+                camera.position.z = Math.max(2, Math.min(15, camera.position.z));
+            });
+        }
+        
+        window.addEventListener('resize', () => {
+            if (viewer3DInitialized && camera && renderer) {
+                const canvas = document.getElementById('viewer-canvas');
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            }
+        });
+</script>
+
+</body>
+</html>
